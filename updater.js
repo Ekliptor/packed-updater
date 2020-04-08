@@ -31,11 +31,15 @@ class Updater {
 
     /**
      * Creates a .tar.gz bundle archive of your app.
+     * This function will only bundle modules where in package.json:
+     * private: true or
+     * bundleUpdate: true or
+     * privateNoInstall: true (means their dependencies will not be bundled recursively)
      * @param options {
      *      srcPath: (String) Path to the root directory of your app (must have a package.json file).
      *      bundleDestDir: (String) Path where to place the .tar.gz file for upload.
      *      addSourceMaps: (boolean, default true) Add .js.map files to the bundle.
-     *      uploadSettings: {
+     *      uploadSettings: { // FTP
      *          ftpDestDir: '',
      *          host: '',
      *          port: 21,
@@ -44,14 +48,14 @@ class Updater {
      *          type: 'ftp|sftp', // default: ftp
      *          privateKey: '' // optional file with key for auth with sftp
      *      }
-     *      bundleDevDependencies: (bool) default false
-     *      enforceModuleVersions: (object) Pin npm dependencies a specify version.
-     *      addVersion: (bool, default false) add version number to archive name
-     *      ignorePaths: string[] some paths with app data you don't want to bundle
+     *      bundleDevDependencies: (bool) default false Bundle private developer dependencies (specified in your root package.json) in the .tar.gz file.
+     *      enforceModuleVersions: (object) Pin NPM dependencies to a specific version. Use this in case there are incompatibilities of different modules requiring the same dependency.
+     *          Try to resolve it in yarn.lock file first.
+     *      addVersion: (bool, default false) `Add version number to archive bundle name.`
+     *      ignorePaths: string[] Some paths with app data you don't want to release in the .tar.gz bundle (such as user data).
      *      ensureWorspaceModulesInstalled (bool, default true) Ensure all modules of our local workspaces are installed before shipping the update.
      *          When using yarn workspaces this is a safety check to ensure your app is starting before shipping the update.
      * }
-     * Will only bundle packages set to private (or bundleUpdate): true. privateNoInstall: true Means their dependencies will not be bundled
      *
      * @param callback(err, bundle)
      */
@@ -93,14 +97,14 @@ class Updater {
     /** Checks for updates of your app.
      * It will detect new versions based on the hash of the bundle (IGNORES the version number).
      * @param options {
-     *      srcPath: (String, optional) Path to the root directory of your app (should contain an updater.json file or else will assume the update is new)
+     *      srcPath: (String, optional) Path to the root directory of your app (should contain the latest updater.json file created by this updater or else will assume the update is new).
      *          If not set, it will assume the current working directory.
-     *      updateJsonUrl: (String) if it doesn't end with ".json", then "name.json" will be appended with the name from package.json
-     *      download: (bool) // download & verify the update in a local directory
+     *      updateJsonUrl: (String) The URL of the latest JSON file. If it doesn't end with ".json", then {name}.json will be appended with the name from package.json.
+     *      download: (bool) // Download & verify the update in a local directory. If false it will just check for a new version and fire the callback with details.
      * }
      * @param callback(err, bundle) bundle will hold the contents of the remote updater.json file with additional properties:
-     *          newVersion: (bool) if there is a new version available
-     *          dest: (String) the local path of the downloaded bundle (if download == true)
+     *          newVersion: (bool) If the version on the web is a new version.
+     *          dest: (String) The local path of the downloaded bundle (if download == true).
      */
     checkUpdates(options, callback) {
         // tar xzf archive.tar.gz
@@ -130,25 +134,26 @@ class Updater {
     }
 
     /**
-     * Installs a previously downloaded update.
+     * Installs a previously downloaded update (downloaded by calling checkUpdates()).
      * It will:
      *      1. start the updater process
      *      2. close the app
      *      3. extract the bundle
-     *      4. run npm install
-     *      5. start the new app
+     *      4. run npm/yarn install
+     *      5. start the latest version app
      * The callback will only be called on error. Otherwise the app will be restarted WITHOUT calling this.
-     * You should cleanup your open sockets etc before calling this to allow the app to shutdown gracefully.
+     * You should cleanup your open sockets etc before calling this function to allow the app to shutdown gracefully.
      * @param options {
-     *      yarn: (boolean, optional): use yarn instead of npm. default = auto detect = true if yarn is installed
-     *      srcPath: (String, optional) Path to the root directory of your app
-     *      bundle: (Object) an update previously downloaded with checkUpdates()
+     *      yarn: (boolean, optional): Use yarn instead of npm. default = auto detect = true (if yarn is installed).
+     *      srcPath: (String, optional) Path to the root directory of your app. If not supplied process.cwd() will be used.
+     *      bundle: (Object) The update previously downloaded with checkUpdates().
      *      exitAfterUpdate: (boolean, default false) Exit the node process after the update instead of restarting it.
-     *      installDevDependencies: (bool) default false, also see bundleDevDependencies
-     *      liveupdate: (bool) // close the app after npm install to minimize downtime // TODO only linux (windows can't overwrite files in use)
-     *      removeAllExistingFiles: (bool) // TODO optional flag to remove all existing files, dangerous with web apps that host user content
-     *      removeDirs: string[] optionally remove (build) dirs (compiled code gets copied to the root dirs of packages by updater). default none []
-     *      removeOldBundles: (boolean optional): Remove old updater bundles from OS temp directory. Default = true
+     *      installDevDependencies: (bool default false) See bundleDevDependencies() for details.
+     *      liveUpdate: (bool) // close the app after npm install to minimize downtime // TODO not implemented. only linux (windows can't overwrite files in use)
+     *      removeAllExistingFiles: (bool) // TODO not implemented. optional flag to remove all existing files, dangerous with web apps that host user content
+     *      removeDirs: string[] optionally remove (build) dirs
+     *      (compiled code gets copied to the root dirs of packages by updater). default none []
+     *      removeOldBundles: (boolean optional, true): Remove old updater bundles from OS temp directory.
      * }
      * @param callback(err)
      */
