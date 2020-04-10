@@ -37,7 +37,7 @@ class Installer {
             this.packageManager = null; // autodetect
         if (!this.options.removeDirs) {
             /*this.options.removeDirs = ["build", "node_modules/apputils/build", "node_modules/spider-core/build",
-                "node_modules/staydown-models/build", "node_modules/bit-models/build"]*/
+                "node_modules/project-models/build", "node_modules/bit-models/build"]*/
             this.options.removeDirs = []
         }
         if (typeof this.options.removeOldBundles !== "boolean")
@@ -124,7 +124,7 @@ class Installer {
                  at ChildProcess.spawn (internal/child_process.js:319:11)
                  at exports.spawn (child_process.js:386:9)
                  at exports.fork (child_process.js:63:10)
-                 at fs.copy (/home/staydown/nodejs/StayDown/SpiderManager/node_modules/packed-updater/src/Installer.js:89:31
+                 at fs.copy (/home/project/nodejs/Project/SpiderManager/node_modules/packed-updater/src/Installer.js:89:31
                  */
                 const child = fork(updateProcessFile, [], options)
                 child.on('error', (err) => {
