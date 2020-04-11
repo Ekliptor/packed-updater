@@ -42,8 +42,8 @@ Take a look at [code examples](https://github.com/Ekliptor/packed-updater/tree/m
 
 #### Updater class
 ##### createBundle(options, callback) 
-Creates a .tar.gz bundle archive of your app.
-This function will only bundle modules where in pa`ckage.json`:
+Creates a `.tar.gz` bundle archive of your app.
+This function will only bundle modules where in `package.json`:
 private: true or
 bundleUpdate: true or
 privateNoInstall: true (means their dependencies will not be bundled recursively)
