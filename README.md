@@ -109,8 +109,5 @@ Use your custom logger (winston, ...) object. If not called, `console` logger wi
 
 ---
 
-## ToDos
-* installing new apps doesn't work on Windows Servers due to permission issues (releasing updates works)
-
 ## Contact
 Follow me on [Twitter](https://twitter.com/ekliptor) and [Memo](https://memo.cash/profile/1JFKA1CabVyX98qPRAUQBL9NhoTnXZr5Zm).

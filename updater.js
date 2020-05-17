@@ -13,7 +13,7 @@ const fs = require('fs')
     , Installer = require('./src/Installer')
     , cluster = require('cluster')
 
-const PREVENT_DEV_OVERWRITE = true
+const PREVENT_DEV_OVERWRITE = process.env.PREVENT_DEV_OVERWRITE != "";
 
 let logger = console
 
@@ -167,7 +167,7 @@ class Updater {
         else if (!options.bundle.dest)
             return callback({text: 'Your options.bundle.dest must contain the downloaded archive'})
         else if (PREVENT_DEV_OVERWRITE === true && (os.platform() === 'darwin' || os.platform() === 'win32'))
-            return callback({text: 'PREVENT_DEV_OVERWRITE prevents you from overwriting sources on your machine'})
+            return callback({text: 'PREVENT_DEV_OVERWRITE config prevents you from overwriting sources on your machine'})
 
         let insaller = new Installer(options)
         insaller.install().then(() => {
