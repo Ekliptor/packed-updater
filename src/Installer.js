@@ -8,6 +8,7 @@ const path = require('path')
     , exec = require('child_process').exec
     , os = require('os')
     , Bundler = require('./Bundler')
+    , helper = require('./utils/helper')
 
 // unfortunately updating packages too often is a bad idea since this often results in incompatible dependencies
 // let's hope our npm packages grow more mature & stable here
@@ -95,7 +96,7 @@ class Installer {
         // 2. our main process might have some open ports. close the main process to ensure those ports are free when we restart the app
         return new Promise((resolve, reject) => {
             //let updateProcessFile = path.join(os.tmpdir(), 'updateProcess.js')
-            fs.copy(path.join(__dirname, 'updateProcess.js'), updateProcessFile, (err) => {
+            fs.copy(path.join(__dirname, 'updateProcess.js'), updateProcessFile, async (err) => {
                 if (err)
                     return reject(err)
                 let processArgs = Object.assign([], process.execArgv)
@@ -116,6 +117,10 @@ class Installer {
                     //stdio:
                 }
                 options.env.IS_UPDATER = true;
+                if (os.platform() === 'win32') {
+                    options.detached = true;
+                    //options.stdio = 'inherit';
+                }
                 /**
                  * TODO how to fix out of memory for updates?
                  * warn: Uncaught Exception
@@ -138,11 +143,14 @@ class Installer {
                 cmdArr = cmdArr.concat(process.argv.slice(1))
                 if (dbg)
                     debugger
-                child.send({
+                await helper.promiseDelay(300) // wait for child before sending messages (fails on windows otherwise)
+                let sendResult = child.send({
                     installerData: curInstanceData,
                     //restartCmd: '"' + process.argv[0] + '" ' + process.execArgv.join(' ') + ' "' + process.argv.slice(1).join('" "') + '"'
                     restartCmd: cmdArr
                 })
+                if (sendResult !== true)
+                    logger.log("Updater: Error sending update message to child process")
                 setTimeout(() => { // wait just to be sure
                     process.exit(0) // release open ports and file handles (for windows)
                 }, 0)
@@ -277,6 +285,9 @@ class Installer {
 
                     options.detached = true // make it the new "parent" or group leader
                     options.stdio = 'ignore' // needed for parent to exit, no more output (except logfiles)
+                    //if (os.platform() === 'win32') {
+                        //options.stdio = 'inherit'; // on windows we keep the CMD window open anyway, so keep showing output
+                    //}
                     const child = spawn(this.restartCmd[0], this.restartCmd.slice(1), options)
                     child.on('close', (code, signal) => { // not exit, wait for all streams to close
                         process.exit(code)

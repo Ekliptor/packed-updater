@@ -71,3 +71,14 @@ helper.getFileSizeBytes = async function(location, options = {}) {
         return 0;
     }
 }
+
+/**
+ * promiseDelay returns a promise that gets resolved after the specified time
+ */
+helper.promiseDelay = function(delayMs, value = null) {
+    return new Promise((resolve, reject)=>{
+        setTimeout(() => {
+            resolve(value);
+        }, delayMs);
+    })
+}
