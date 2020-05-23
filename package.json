@@ -1,6 +1,6 @@
 {
     "name": "@ekliptor/packed-updater",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "description": "Updater to bundle all (private) npm modules based on their package.json together in an archive. Also checks for new versions.",
     "main": "updater.js",
     "private": false,
