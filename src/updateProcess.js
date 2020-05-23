@@ -18,3 +18,5 @@ process.on('message', (message) => {
         resumeUpdate(message.installerData.options, message.restartCmd)
     }, 600)
 })
+
+setTimeout(() => {}, 2000); // ensure this process keeps running until we get the message from parent

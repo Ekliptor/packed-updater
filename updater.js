@@ -13,7 +13,7 @@ const fs = require('fs')
     , Installer = require('./src/Installer')
     , cluster = require('cluster')
 
-const PREVENT_DEV_OVERWRITE = process.env.PREVENT_DEV_OVERWRITE != "";
+const PREVENT_DEV_OVERWRITE = process.env.PREVENT_DEV_OVERWRITE === "1";
 
 let logger = console
 
