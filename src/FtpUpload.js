@@ -1,12 +1,14 @@
-const EasyFtp = require('easy-ftp')
+const EasyFtp = require('@ekliptor/easy-ftp')
     , path = require('path')
 
 let logger = console
 
 class FtpUpload {
     constructor(settings) {
+        // FTP (no SFTP) alternative (actively maintained): https://github.com/icetee/node-ftp
         this.ftp = new EasyFtp()
         this.settings = settings
+        this.verifyFtpSettings();
     }
 
     static setLogger(loggerObj) {
@@ -25,6 +27,7 @@ class FtpUpload {
                 logger.log('Updater: Uploaded bundle')
                 bundle.uploaded = true
                 resolve()
+                return this.disconnect();
             }).catch((err) => {
                 reject(err)
             })
@@ -34,7 +37,7 @@ class FtpUpload {
     // ################################################################
     // ###################### PRIVATE FUNCTIONS #######################
 
-    connect() {
+    async connect() {
         return new Promise((resolve, reject) => {
             let connected = false
             this.ftp.connect(this.settings)
@@ -57,6 +60,10 @@ class FtpUpload {
         })
     }
 
+    disconnect() {
+        this.ftp.close();
+    }
+
     createUploadDir() {
         return new Promise((resolve, reject) => {
             this.ftp.exist(this.settings.ftpDestDir, (exist) => {
@@ -74,7 +81,10 @@ class FtpUpload {
     upload(bundle) {
         return new Promise((resolve, reject) => {
             let bundleName = path.basename(bundle.dest)
-            let remoteDest = this.settings.ftpDestDir + '/' + bundleName // for remote dir always use "/"
+            let remoteDest = this.settings.ftpDestDir;
+            if (remoteDest.substr(-1) !== "/")
+                remoteDest += "/";
+            remoteDest += bundleName;
             this.ftp.upload(bundle.dest, remoteDest, (err) => {
                 if (err)
                     return reject(err)
@@ -88,6 +98,15 @@ class FtpUpload {
                 })
             })
         })
+    }
+
+    verifyFtpSettings() {
+        if (!this.settings || typeof this.settings !== "object")
+            throw new Error("'uploadSettings' must be a valid object");
+        if (!this.settings.ftpDestDir || typeof this.settings.ftpDestDir !== "string")
+            throw new Error("'uploadSettings.host' must be a directory path to upload");
+        if (!this.settings.host || typeof this.settings.host !== "string")
+            throw new Error("'uploadSettings.host' must be a valid hostname");
     }
 }
 
