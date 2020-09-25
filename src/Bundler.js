@@ -31,6 +31,7 @@ class Bundler {
         this.compilerOutDirDest = ""; // the output dir of the temp bundle location we create (to be deleted)
         this.addSourceMaps = true;
         this.ignorePaths = [];
+        this.ignoreExtensions = [];
         this.ensureWorspaceModulesInstalled = true;
         this.moduleConfig = null; // Map (configFilePath, json)
     }
@@ -299,6 +300,9 @@ class Bundler {
                         return false
                     if (that.isWorkspaceModule(name))
                         return false // all private modules must be in workspace. so they can't have any modules as dependencies that we need to copy
+                    const extension = path.extname(name);
+                    if (that.ignoreExtensions.indexOf(extension) !== -1)
+                        return false
 
                     // check permissions: if file is not writable the updater will not be able to overwrite it after installing it once
                     // strange place here in options, but works
@@ -435,7 +439,7 @@ class Bundler {
             Promise.all(writeOps).then(() => {
                 resolve()
             }).catch((err) => {
-                reject()
+                reject(err)
             })
         })
     }
@@ -696,7 +700,22 @@ class Bundler {
                 if (err) {
                     if (err.code === 'ENOENT')
                         return resolve('') // we are not using typescript
-                    return reject(err)
+                    else if (err.text === "Error parsing .json file") {
+                        // TODO add hjson parser: https://github.com/hjson/hjson-js
+                        logger.warn(err);
+                        /*json = {
+                            compilerOptions: {
+                                outDir: "./"
+                            }
+                        }
+                        logger.warn("Using dummy tsconfig.json: %s", json);
+                         */
+                        this.ignoreExtensions.push(".ts");
+                        logger.warn("Updater: Assuming TypeScript: expecting compiled files in same directory");
+                        return resolve("");
+                    }
+                    else
+                        return reject(err)
                 }
                 this.compilerJson = json;
                 this.compilerOutDirDest = json.compilerOptions.outDir;
@@ -854,6 +873,8 @@ class Bundler {
                                 if ((json.private !== true && json.bundleUpdate !== true) || !json.main)
                                     return resolve()
                             }
+                            if (json.main === undefined || typeof json.main !== "string")
+                                json.main = "";
                             json.main = json.main.replace(this.getCompileFolderName() + "/", "") // always UNIX style in json
                             if (json.typings)
                                 json.typings = json.typings.replace(this.getCompileFolderName() + "/", "") // shouldn't really matter for typings

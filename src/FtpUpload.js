@@ -1,4 +1,4 @@
-const EasyFtp = require('@ekliptor/easy-ftp')
+const EasyFtp = require('@ekliptor/easy-ftp') // TODO we should be able to migrate back to original module
     , path = require('path')
 
 let logger = console
