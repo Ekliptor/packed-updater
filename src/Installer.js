@@ -160,14 +160,19 @@ class Installer {
 
     extractUpdate() {
         return new Promise((resolve, reject) => {
-            const gunzip = zlib.createGunzip()
-            let readStream = fs.createReadStream(this.bundle.dest) // TODO still an exception if this file doesn't exist?
-            readStream.on('error', reject)
-            readStream.on('end', resolve)
-            readStream.pipe(gunzip).pipe(tar.extract(this.installDir)) // just overwrite everything
-                .on('error', reject) // error of write stream // TODO catching all?
-            // TODO optional removeAllExistingFiles
-            // TODO option to check file modification timestamps and not overwrite config files (.json)
+            try {
+                const gunzip = zlib.createGunzip()
+                let readStream = fs.createReadStream(this.bundle.dest) // throws an exception if this file in /tmp doesn't exist
+                readStream.on('error', reject)
+                readStream.on('end', resolve)
+                readStream.pipe(gunzip).pipe(tar.extract(this.installDir)) // just overwrite everything
+                    .on('error', reject) // error of write stream // TODO catching all?
+                // TODO optional removeAllExistingFiles
+                // TODO option to check file modification timestamps and not overwrite config files (.json)
+            }
+            catch (err) {
+                reject(err)
+            }
         })
     }
 
