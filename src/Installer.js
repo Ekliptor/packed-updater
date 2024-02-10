@@ -260,7 +260,7 @@ class Installer {
                     }))
                 })
                 Promise.all(removeOps).then(() => {
-                    logger.log('Updater: Done cleanup. Updater exited')
+                    logger.log('Updater: Done cleanup. Updater exited\r\n')
                     process.exit(0) // wait for child
                 })
             }
