@@ -407,6 +407,7 @@ class Installer {
         })
     }
 
+    // TODO detect PNPM and prefer if there is a pnpm-lock.yaml or "packageManager": "pnpm@10.20.0" in package.json
     detectYarn() {
         return new Promise((resolve, reject) => {
             if (this.packageManager)

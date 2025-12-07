@@ -1,13 +1,13 @@
 {
     "name": "@ekliptor/packed-updater",
-    "version": "1.0.15",
+    "version": "1.1.0",
     "description": "Updater to bundle all (private) npm modules based on their package.json together in an archive. Also checks for new versions.",
     "main": "updater.js",
     "private": false,
     "author": "Ekliptor",
     "license": "GPL",
     "dependencies": {
-        "@ekliptor/easy-ftp": "^0.4.2",
+        "basic-ftp": "^5.0.5",
         "fs-extra": "^6.0.1",
         "request": "^2.79.0",
         "tar-fs": "1.16.2"

@@ -13,7 +13,7 @@ class NodeModule {
     }
 
     getBuildDir() {
-        if (!this.tsconfig)
+        if (!this.tsconfig || !this.tsconfig.compilerOptions || !this.tsconfig.compilerOptions.outDir)
             return "./"
         return this.tsconfig.compilerOptions.outDir
     }

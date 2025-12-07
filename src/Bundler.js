@@ -30,6 +30,7 @@ class Bundler {
         this.compiledOutputDir = ""; // the output dir of the source project
         this.compilerOutDirDest = ""; // the output dir of the temp bundle location we create (to be deleted)
         this.addSourceMaps = true;
+        this.bundleTypescript = false; // if true, bundle .ts files directly instead of compiled .js files
         this.ignorePaths = [];
         this.ignoreExtensions = [];
         this.ensureWorspaceModulesInstalled = true;
@@ -68,6 +69,8 @@ class Bundler {
 
         if (typeof options.addSourceMaps === "boolean")
             this.addSourceMaps = options.addSourceMaps;
+        if (typeof options.bundleTypescript === "boolean")
+            this.bundleTypescript = options.bundleTypescript;
         if (options.ignorePaths)
             this.ignorePaths = options.ignorePaths;
         if (typeof options.ensureWorspaceModulesInstalled === "boolean")
@@ -315,8 +318,8 @@ class Bundler {
                         // do nothing
                     });
 
-                    // bundle .js files instead of typescript files
-                    if (that.compiledOutputDir && name.substr(-3) === '.ts') {
+                    // bundle .js files instead of typescript files (unless bundleTypescript is true)
+                    if (that.compiledOutputDir && !that.bundleTypescript && name.substr(-3) === '.ts') {
                         if (name.substr(-5) === '.d.ts')
                             return false;
                         else if (that.isIgnorePath(name) === true)
@@ -344,7 +347,7 @@ class Bundler {
                             search = helper.escapeRegex(path.join(path.sep, mod.getBuildDir(), path.sep, "node_modules", path.sep))
                             compiledFileSrc = compiledFileSrc.replace(new RegExp(search, "g"), path.sep + "node_modules" + path.sep)
                         })
-                        compiledFileSrc = compiledFileSrc.replace(srcRoot, that.compiledOutputDir).replace(/\.ts$/, '.js')
+                        compiledFileSrc = path.normalize(compiledFileSrc.replace(srcRoot, that.compiledOutputDir).replace(/\.ts$/, '.js'))
 
                         // node_modules is always in project root dir
                         if (that.compilerJson) {
@@ -380,7 +383,8 @@ class Bundler {
                         return false
                     }
                     // don't bundle locally compiled build dirs of sub modules (we copy them to the root dir)
-                    if (that.compiledOutputDir) { // TODO this will not work if our modules use another folder name for their "build" dir
+                    // skip this check when bundleTypescript is true (we want source files from project root, not compiled output)
+                    if (that.compiledOutputDir && !that.bundleTypescript) { // TODO this will not work if our modules use another folder name for their "build" dir
                         let folderName = path.sep + that.getCompileFolderName() + path.sep; // last sep is important or else we skip build.js files
                         if (name.indexOf(folderName) !== -1)
                             return false;
@@ -412,7 +416,7 @@ class Bundler {
                     copyOps.push(that.copySingleFile(compiledFile.src, compiledFile.dest))
                 })
                 Promise.all(copyOps).then(() => {
-                    return this.deleteCompiledDir(srcRoot, copyDest)
+                    return this.deleteCompiledDir(srcRoot, copyDest) // before copying dependencies
                 }).then(() => {
                     return this.copyDependenciesToRootJson(dependencies, modules, copyDest)
                 }).then(() => {
@@ -719,7 +723,12 @@ class Bundler {
                 }
                 this.compilerJson = json;
                 this.compilerOutDirDest = json.compilerOptions.outDir;
-                let outDir = path.join(srcDir, json.compilerOptions.outDir)
+                if (!this.compilerOutDirDest) {
+                    logger.warn("Updater: No outDir in tsconfig.json, using source directory");
+                    return resolve(srcDir + path.sep);
+                }
+
+              let outDir = path.join(srcDir, json.compilerOptions.outDir)
                 if (outDir && outDir.substr(-1) !== path.sep)
                     outDir += path.sep
                 resolve(outDir)
@@ -783,8 +792,13 @@ class Bundler {
 
     deleteCompiledDir(srcRoot, copyDest) {
         return new Promise((resolve, reject) => {
-            if (!this.compiledOutputDir)
-                return resolve();
+            if (!this.compiledOutputDir || !this.compilerOutDirDest) {
+                return fs.ensureDir(path.join(copyDest, "node_modules"), (err) => { // in TS only mode
+                    if (err)
+                        return reject(err)
+                    resolve()
+                })
+            }
             let copyCompiledDir = path.join(copyDest, this.compilerOutDirDest)
 
             fs.remove(copyCompiledDir, (err) => {
