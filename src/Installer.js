@@ -30,9 +30,11 @@ class Installer {
         this.bundle = options.bundle
         this.installDir = options.srcPath
         this.restartCmd = restartCmd
-        if (options.yarn === true)
+        if (options.pnpm === true)
+            this.packageManager = "pnpm";
+        else if (options.yarn === true)
             this.packageManager = "yarn";
-        else if (options.yarn === false)
+        else if (options.yarn === false && options.pnpm === false)
             this.packageManager = "npm";
         else
             this.packageManager = null; // autodetect
@@ -70,7 +72,7 @@ class Installer {
         return new Promise((resolve, reject) => {
             logger.log('Updater: Extracting update...')
             this.loadLocalBundle().then(() => {
-                return this.detectYarn()
+                return this.detectPackageManager()
             }).then(() => {
                 return this.extractUpdate()
             }).then(() => {
@@ -357,7 +359,7 @@ class Installer {
                     resolve()
                 })
             }
-            if (this.packageManager !== "npm") // yarn manages up-2-date dependencies automatically
+            if (this.packageManager !== "npm") // yarn and pnpm manage up-to-date dependencies automatically
                 return setUpdated();
 
             logger.log('Updater: Updating dependencies...')
@@ -407,31 +409,108 @@ class Installer {
         })
     }
 
-    // TODO detect PNPM and prefer if there is a pnpm-lock.yaml or "packageManager": "pnpm@10.20.0" in package.json
-    detectYarn() {
-        return new Promise((resolve, reject) => {
-            if (this.packageManager)
-                return resolve()
-            let options = {
-                encoding: 'utf8',
-                //timeout: timeoutMs, // send killSignal after timeout ms
-                //maxBuffer: 500 * 1024 * 1024, // max bytes in stdout or stderr // 500 mb
-                killSignal: 'SIGTERM',
-                cwd: process.cwd(),
-                env: process.env // key-value pairs
+  /**
+   *  Detect the installed package managers on the target machine. Prefers PNPM -> Yarn -> NPM
+   *  It reads package.json and package manager lockfiles to respect the developers' preference.
+   * @returns {Promise<void>}
+   */
+  async detectPackageManager() {
+        if (this.packageManager)
+            return
+
+        // Check which package managers are installed
+        const pnpmInstalled = await this.isCommandAvailable("pnpm --version")
+        const yarnInstalled = await this.isCommandAvailable("yarn --version")
+
+        // Read package.json once
+        let packageJson = null
+        const packageJsonPath = path.join(this.installDir, 'package.json')
+        try {
+            packageJson = await fs.readJson(packageJsonPath)
+        }
+        catch (err) {
+            // package.json doesn't exist or is invalid, continue with other detection
+        }
+
+        // Check for pnpm (if installed)
+        if (pnpmInstalled) {
+            const pnpmLockPath = path.join(this.installDir, 'pnpm-lock.yaml')
+            if (await this.fileExists(pnpmLockPath)) {
+                this.packageManager = "pnpm"
+                logger.log('Updater: Found pnpm-lock.yaml. Using pnpm')
+                return
             }
-            const detectChild = exec("yarn -h", options, (err, stdout, stderr) => {
+
+            if (packageJson?.packageManager?.startsWith('pnpm')) {
+                this.packageManager = "pnpm"
+                logger.log('Updater: Found packageManager field specifying pnpm. Using pnpm')
+                return
+            }
+        }
+
+        // Check for yarn (if installed)
+        if (yarnInstalled) {
+            if (packageJson?.packageManager?.startsWith('yarn')) {
+                this.packageManager = "yarn"
+                logger.log('Updater: Found packageManager field specifying yarn. Using yarn')
+                return
+            }
+
+            const yarnLockPath = path.join(this.installDir, 'yarn.lock')
+            if (await this.fileExists(yarnLockPath)) {
+                this.packageManager = "yarn"
+                logger.log('Updater: Found yarn.lock. Using yarn')
+                return
+            }
+        }
+
+        // Check for npm
+        if (packageJson?.packageManager?.startsWith('npm')) {
+            this.packageManager = "npm"
+            logger.log('Updater: Found packageManager field specifying npm. Using npm')
+            return
+        }
+
+        const npmLockPath = path.join(this.installDir, 'package-lock.json')
+        if (await this.fileExists(npmLockPath)) {
+            this.packageManager = "npm"
+            logger.log('Updater: Found package-lock.json. Using npm')
+            return
+        }
+
+        // Fallback
+        if (yarnInstalled) {
+            this.packageManager = "yarn"
+            logger.log('Updater: yarn is available. Using yarn')
+        }
+        else {
+            this.packageManager = "npm"
+            logger.log('Updater: Using npm as fallback')
+        }
+    }
+
+    async isCommandAvailable(cmd) {
+        try {
+            await this.execCommand(cmd)
+            return true
+        }
+        catch (err) {
+            return false
+        }
+    }
+
+    fileExists(filePath) {
+        return fs.access(filePath, fs.constants.F_OK)
+            .then(() => true)
+            .catch(() => false)
+    }
+
+    execCommand(cmd) {
+        return new Promise((resolve, reject) => {
+            exec(cmd, { encoding: 'utf8' }, (err, stdout, stderr) => {
                 if (err)
-                    return reject({txt: "Error detecting yarn", err: err}) // shouldn't happen
-                if (!stdout || stdout.indexOf("yarnpkg.com") === -1) {
-                    this.packageManager = "npm";
-                    logger.log('Using NPM package manager. Consider installing yarn if you encounter problems.')
-                }
-                else {
-                    this.packageManager = "yarn";
-                    logger.log('Updater: Found yarn package manager. Using it')
-                }
-                resolve()
+                    return reject(err)
+                resolve(stdout)
             })
         })
     }
