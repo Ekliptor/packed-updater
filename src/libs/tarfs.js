@@ -8,7 +8,6 @@
 var chownr = require('chownr')
 var tar = require('tar-stream')
 var pump = require('pump')
-var mkdirp = require('mkdirp')
 var fs = require('fs')
 var path = require('path')
 var os = require('os')
@@ -343,9 +342,10 @@ function validate (fs, name, root, cb) {
 }
 
 function mkdirfix (name, opts, cb) {
-    mkdirp(name, {fs: opts.xfs}, function (err, made) {
-        if (!err && made && opts.own) {
-            chownr(made, opts.uid, opts.gid, cb)
+    var xfs = opts.fs || fs
+    xfs.mkdir(name, { recursive: true }, function (err) {
+        if (!err && opts.own) {
+            chownr(name, opts.uid, opts.gid, cb)
         } else {
             cb(err)
         }
