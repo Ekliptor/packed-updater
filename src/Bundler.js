@@ -10,6 +10,7 @@ const path = require('path')
     , helper = require('./utils/helper')
     , updaterJson = require('../models/updaterJson')
     , NodeModule = require('../models/NodeModule')
+    , Module = require('module') // for cross-package-manager (pnpm/yarn/npm) dependency resolution
 
 const MODULE_DIR = 'node_modules' + path.sep
 const TEMP_DIR_BASE = '..' + path.sep + 'temp-'// has to be OUTSIDE of app dir
@@ -597,17 +598,48 @@ class Bundler {
         })
     }
 
+    /**
+     * Resolve the install directory of dependency `pName` as required by the module at
+     * `srcRoot`, independent of the package manager / node_modules layout:
+     *   - npm v2 / Yarn classic: nested under <srcRoot>/node_modules/<pName>
+     *   - npm v3+ / Yarn hoisting: hoisted into a parent node_modules
+     *   - pnpm: symlinked into the central store next to the module's real dir (.pnpm)
+     * Returns the directory containing the dependency's package.json, or null when the
+     * dependency is not installed for this module (e.g. an unmet optional/peer dep).
+     */
+    resolveModuleDir(srcRoot, pName) {
+        // 1) nested layout first - keeps the exact path & behaviour npm/Yarn relied on
+        let nested = path.join(srcRoot, MODULE_DIR, pName)
+        if (fs.existsSync(path.join(nested, 'package.json')))
+            return nested
+        // 2) fall back to Node's own module resolution so pnpm's symlinked store and any
+        //    hoisted dependency are found too. Resolve the symlink first: under pnpm a
+        //    module's deps live next to its *real* location inside .pnpm, not under the
+        //    symlink in the top-level node_modules.
+        let from = srcRoot
+        try { from = fs.realpathSync(srcRoot) } catch (e) { /* not a symlink - keep srcRoot */ }
+        let searchDirs = Module._nodeModulePaths(from)
+        for (let i = 0; i < searchDirs.length; i++) {
+            let candidate = path.join(searchDirs[i], pName)
+            if (fs.existsSync(path.join(candidate, 'package.json')))
+                return candidate
+        }
+        return null
+    }
+
     loadModules(packageNames, srcRoot) {
         return new Promise((resolve, reject) => {
             let modules = []
             let moduleOps = []
             packageNames.forEach((pName) => {
-                let moduleDir = path.join(srcRoot, MODULE_DIR, pName)
                 moduleOps.push(new Promise((resolve, reject) => {
+                    let moduleDir = this.resolveModuleDir(srcRoot, pName)
+                    if (moduleDir === null)
+                        return resolve(null) // dependency not installed for this module -> nothing to bundle
                     let jsonPath = path.join(moduleDir, 'package.json')
                     fs.readFile(jsonPath, 'utf8', (err, data) => {
                         if (err)
-                            return reject(err)
+                            return resolve(null) // raced/unreadable -> skip, don't abort the whole bundle
                         let moduleJson = helper.parseJson(data)
                         if (moduleJson === null)
                             return reject({text: 'Error parsing module json: ' + jsonPath})
@@ -620,7 +652,7 @@ class Bundler {
             })
             Promise.all(moduleOps).then((modulePathArr) => {
                 modulePathArr.forEach((modulePath) => {
-                    if (modulePath) // filter the modules we skiped (public)
+                    if (modulePath) // filter the modules we skipped (public)
                         modules.push(modulePath)
                 })
                 resolve(modules)
