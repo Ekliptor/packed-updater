@@ -46,7 +46,9 @@ class Bundler {
         fs.readFile(jsonPath, 'utf8', (err, data) => {
             if (err)
                 return callback(err)
-            if (!data || data.length === 0 || data[0] !== '{')
+            //if (!data || data.length === 0 || data[0] !== '{')
+            // allow leading whitespace/BOM and comments (JSONC, e.g. tsconfig.json)
+            if (!data || data.length === 0 || helper.stripJsonComments(data).trimStart()[0] !== '{')
                 return callback({text: 'Invalid .json file', location: jsonPath})
             let json = helper.parseJson(data)
             if (json === null)

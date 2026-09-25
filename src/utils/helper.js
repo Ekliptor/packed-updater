@@ -9,9 +9,65 @@ helper.parseJson = function(json) {
     try {
         return JSON.parse(json)
     } catch (error) {
-        //logger.error('Error parsing JSON: ' + error)
-        return null
+        // fallback for JSONC files such as tsconfig.json (comments + trailing commas)
+        try {
+            return JSON.parse(helper.stripJsonComments(json))
+        } catch (error) {
+            //logger.error('Error parsing JSON: ' + error)
+            return null
+        }
     }
+}
+
+/**
+ * Remove a leading BOM, // and /* *\/ comments and trailing commas from a JSON string (JSONC).
+ * String contents (including escaped quotes) are left untouched.
+ * @param json {string}
+ * @returns {string}
+ */
+helper.stripJsonComments = function(json) {
+    if (json.charCodeAt(0) === 0xFEFF)
+        json = json.substring(1)
+    let out = ''
+    let i = 0
+    const len = json.length
+    while (i < len) {
+        const ch = json[i]
+        const next = json[i + 1]
+        if (ch === '"') {
+            // copy the whole string literal
+            let end = i + 1
+            while (end < len && json[end] !== '"') {
+                if (json[end] === '\\')
+                    end++
+                end++
+            }
+            out += json.substring(i, end + 1)
+            i = end + 1
+        }
+        else if (ch === '/' && next === '/') {
+            while (i < len && json[i] !== '\n' && json[i] !== '\r')
+                i++
+        }
+        else if (ch === '/' && next === '*') {
+            const end = json.indexOf('*/', i + 2)
+            i = end === -1 ? len : end + 2
+        }
+        else if (ch === ',') {
+            // drop trailing commas before a closing bracket/brace
+            let j = i + 1
+            while (j < len && /\s/.test(json[j]))
+                j++
+            if (json[j] !== '}' && json[j] !== ']')
+                out += ch
+            i++
+        }
+        else {
+            out += ch
+            i++
+        }
+    }
+    return out
 }
 
 helper.escapeRegex = function(str) {
